@@ -1,0 +1,2 @@
+# Ignore this document, it is meant to verify that the scripts working directory is set properly
+verifying-12345

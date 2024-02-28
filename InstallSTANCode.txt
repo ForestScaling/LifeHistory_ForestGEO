@@ -1,0 +1,53 @@
+# 00_InstallSTANCode.R
+# RCode for Installing STAN
+# JMR
+# 12023-05-22
+
+# Using the guide on the github page for RStan
+# https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+
+# 1.
+# Start off with the installation of rtools42, STAN is picky
+# about the version history unfortunately. Also have it install
+# directly to the "C:/" drive on a PC.
+# Link:
+# https://cran.r-project.org/bin/windows/Rtools/rtools42/rtools.html
+
+# 2. 
+# Now we need to install the packages needed, STAN is kind of picky about the
+# version needed to actually get this working so using the regular install
+# option should be avoided.
+
+# The documentation recommends uninstalling old versions first
+remove.packages("rstan")
+if (file.exists(".RData")) file.remove(".RData")
+
+cat("Please restart R!") # You need to restart R
+
+
+# Install the StanHeaders Package
+install.packages("StanHeaders",
+                 repos = c("https://mc-stan.org/r-packages/",
+                           getOption("repos")))
+
+# Install rstan
+install.packages("rstan",
+                 repos = c("https://mc-stan.org/r-packages/",
+                           getOption("repos")))
+
+
+# Install the other packages recommended to go with this
+install.packages(c("gdata", "bayesplot"))
+
+
+# Example case to check that it installed properly
+library("rstan")
+example(stan_model, package = "rstan", run.dontrun = TRUE)
+
+# The warning:
+# "
+# Warning message:
+# In system(paste(CXX, ARGS), ignore.stdout = TRUE, ignore.stderr = TRUE) :
+# 'C:/rtools40/usr/mingw_/bin/g++' not found
+# "
+# Is safe to ignore, they should patch it out eventually.
