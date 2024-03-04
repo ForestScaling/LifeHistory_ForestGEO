@@ -11,6 +11,35 @@ set.seed(123)
 Gdr_loc <- paste0("G:/Shared drives/NASA_ForestScaling/LifeHistoryStrats/",
                   "data/ForestGEO/processed/example/")
 double.df <- read.csv(paste0(Gdr_loc, "wide_HFdata_example.csv"))
+# Format:
+# 1- StemID - unique stem identifier, unique per stem over time
+# 2- TreeID - unique plant identifier, forked trees have the same TreeID, but 
+#   each stem has a separate stemID
+# 3- Mnemonic - species code
+# 4- Census - densus number (you can ignore this)
+# 5- Stem - denotes whether the stem is the main stem in the plant. categories 
+#   are, NA - only one stem in the TreeID, Main - largest stem of multiple, 
+#   Secondary - multiple stems NOT largest. for FIA first passI would set to NA
+# 6- CanopyLvl - integer, the I calculated trees using a weird algorithm to make
+#   this assignment, for FIA maybe set crown classes of dominant/codominant
+#   to 1, and subcanopy/intermediate to 2.
+# 7- RametStatus_bef - stem was alive (A)/dead (D) in first interval. MAy also
+#   see prior (P) if the stem recruited between the censuses. (M) if
+#   missing the observation
+# 8- GenetStatus_bef - the entire tree (all stems) had at least some live
+#   stems, I am guessing the FIA data is missing this so put "A" and ignore it
+# 9- DBH_bef - DBH in mm in first census,
+# 10- Codes_bef - binary 1 if location of DBH height changed, stick in 0 be
+#   default
+# 11- Date_bef - datae of first observation (you can ignore this)
+# 12-15,17 the same columns as 7-11 but for the second census.
+# 16- RecruitStatus - whether or not the stem recruited 'NO' tree was here last
+#   time, 'GR' stem is new, and not part of a previously recorded plant (if
+#   in doubt use this). 'RR' stem is new, but part of a plant that was prev-
+#   -iously recorded (mostly for shrubs), NA - for missing stems.
+# 18- Date_dur - length of time in years between the observations, if in doubt
+#   pick an average.
+
 
 # --- Stature -----------------------------------------------------------------
 # Calculating Stature:
