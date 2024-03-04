@@ -1,0 +1,542 @@
+---
+title: "03_InitialDataVisualization"
+author: "J. M. Rodríguez"
+date: "2023-06-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Initial setup
+
+This document is meant to visualize the variety of different ways of handling the data for the estimation of parameters. It will be using Harvard forest as a baseline.
+
+```{r set-up, echo = F, message = F}
+# This script is based off of the 02_GetValues.R script,
+
+loc_Gdr <- "G:/Shared drives/NASA_ForestScaling/LifeHistoryStrats"
+loc_data1 <- paste0(loc_Gdr, "/data/ForestGEO/processed/canopy_assign/")
+loc_data2 <- paste0(loc_Gdr, "/data/ForestGEO/taxa/")
+loc_out1 <- paste0(loc_Gdr, "/outputs/")
+
+# Bringing in the packages:
+packages <- c( "MASS", "magrittr", "lubridate", "knitr",
+              "fitdistrplus", "tidyverse", "kableExtra")
+invisible(lapply(packages, library, character.only = T))
+
+# Setting/finding location of the script, so that the WD is automatically
+# within GITHub local copy location.
+setwd("C:/Users/juan.m.rodriguez/Documents/ProgramFiles/Github/NASA_ForestScaling/LifeHistory/forestGEO") # currently having issues with this, so hardcoded
+
+
+# Bring in commonly used functions
+source("scripts/00_Functions.R")
+
+# Site vector
+site <-  "HVDF"
+
+# Default plotting dimension for diagnostic plots
+plot_w <- 7*2.54
+plot_h <- 7*2.54
+plot_u <- "cm"
+
+# Loading in the data
+load(paste0(loc_data1, paste0(site, "_AllStemsCL.r")))
+  AllStems <- get(paste0(site, "_AllStemsCL"))
+  # load the taxa table
+  load(paste0(loc_data2, site, "_TaxaTable.r"))
+  TaxaTable <- get(paste0(site, "_TaxaTable"))
+  
+  TaxaTable_2est <- TaxaTable %>%
+    filter(DropBegin == 0, DropParamtrz == 0) %>%
+    select(., "Mnemonic") %>%
+    as_tibble() %>%
+    mutate(Mnemonic = as.factor(Mnemonic))
+  
+  
+    verify.df <- AllStems[[1]] %>%
+    select(., c("Mnemonic", "TreeID", "StemID", "Census"))
+    
+    # loop through all of the censuses and rbind them together
+  for(i in 2:length(AllStems)){
+    verify.df <- AllStems[[i]] %>%
+      select(., c("Mnemonic", "TreeID", "StemID", "Census")) %>%
+      rbind(., verify.df)}
+  
+  # Get the number of censuses (BEING NA COUNTS AS A DIFFERENT CENSUS!!!)
+  n_census <- length(unique(verify.df$Census))
+  if(NA %in% unique(verify.df$Unique_Census)){
+    warning("NA values are present in the census information!")
+  }
+  
+    # Summary of the StemIDs across the censuses:
+  verify.df %<>% group_by(., StemID) %>%
+    summarize(Unique_mnem = n_distinct(Mnemonic), # number unique mnemonics
+              Unique_TreeID = n_distinct(TreeID), # number unique TreeID
+              Unique_Census = n_distinct(Census), # number of unique censuses
+              n_record = n()) # number unique records
+
+  
+  
+   dropme <- TaxaTable$Mnemonic[which(as.logical(TaxaTable$DropParamtrz))]
+   
+  
+  # Drop them
+  for(i in 1:length(AllStems)){
+    AllStems[[i]] <- AllStems[[i]][!(AllStems[[i]]$Mnemonic %in% dropme),]}
+  
+```
+
+We are going to start off with some very simple summaries of the data to get a handle on what is going on here. Here is a list of all taxa not included in the analysis along with the number of stems associated with them for the first census.
+
+```{r firstTable, echo = F}
+tb1 <- AllStems[[1]] %>%
+  group_by(Mnemonic) %>% 
+  summarize(Latin = unique(Latin),
+            n_stem = n(),
+            n_genet = length(unique(TreeID)),
+            perc_Stems = 100*n()/nrow(AllStems[[1]]),
+            perc_Alive =
+              100*length(which(RametStatus == "A"))/n_stem) %>% arrange(desc(n_stem) )
+
+commonOTU <- tb1$Mnemonic[1:min(5, nrow(tb1))]
+common10 <- tb1$Mnemonic[1:min(10, nrow(tb1))]
+  
+AllStems[[1]] %>% summarise(Mnemonic = "", Latin = "All stems",
+                            n_stem = n(), n_genet = length(unique(TreeID)),
+                            perc_Stems = NA,
+                            perc_Alive =
+                              100*length(which(RametStatus == "A"))/n_stem) %>%
+  rbind(., tb1) %>% kable(digits = 1)
+
+```
+### Canopy Levels
+```{r CanopyLvl, echo = 0}
+tb2 <- AllStems[[1]] %>%
+  group_by(., CanopyLvl) %>%
+  summarize(n_stem = n(),
+            n_genet = length(unique(TreeID)),
+            perc_Total = 100*n()/nrow(.))
+
+kable(tb2, digits = 1)
+
+```
+
+### Stature data
+Stature here follows the same calculation as in Kambach et al. 2022, arithmetic mean of the largest 6 stem diameter measurements across the OTU. Each StemID can only be included once (if the largest individual lives across multiple censuses, it will only have one, its largest, DBH included)
+
+```{r Stature, echo=F}
+ stature.df <- AllStems[[1]]
+  # Question for considering the largest diameter trees, should we drop all
+  # those with their diameter taken at a different height? Or is this just
+  # a negligible effect?
+  stature.df %<>% select(., c("Mnemonic", "TreeID", "StemID",
+                              "Census", "DBH","Codes","RametStatus"))
+
+  # loop through all of the censuses and rbind them together
+  for(i in 2:length(AllStems)){
+    stature.df <- AllStems[[i]] %>%
+    select(., c("Mnemonic", "TreeID", "StemID", "Census",
+                "DBH","Codes","RametStatus")) %>%
+    rbind(., stature.df)}
+  
+  # Only keep those that have DBH measures and are alive
+  stature.df %<>% filter(., RametStatus == "A", !is.na(DBH)) %>%
+    mutate_at(., c("TreeID", "StemID"), as.factor) %>%
+    group_by(., StemID)
+  
+  # Get the maximum DBH for the StemID, also checks that their is only 1 taxon
+  # and TreeID assigned per live-non NA DBH StemID
+  stature.df %<>% summarise(., maxDH = max(DBH, na.rm = T))
+  
+  # Re-add the TreeID and taxon (mnemonic) information
+  stature.df <- AllStems[[1]] %>% select(c("StemID", "TreeID", "Mnemonic")) %>%
+    mutate_all(., as.factor) %>%
+    right_join(., stature.df, by = "StemID") %>%
+    as_tibble(.)
+  
+  # --- PARAMETER FOR SIZE/STATURE --------------------------------------------
+  # For each unique mnemonic find the largest 6 individual live stems
+  # and average their DBH.
+  # future options could be using the X-percentile (95? or 90?)
+  stature.df %<>% group_by(., Mnemonic) %>%
+    summarise(., statureDBH = mean(sort(maxDH, decreasing = T)[1:6],
+                                   na.rm = T),  number = n())
+  
+  # Add back in the taxa that couldn't be estimated.
+  stature.df %<>% right_join(., TaxaTable_2est, by = "Mnemonic")
+  
+    
+  # generate diagnostic/summary plots for the data
+  # Generate Log histogram of statures
+  plot_out1 <- ggplot(data = stature.df, aes(x = statureDBH)) +
+    geom_histogram(breaks = 10^seq(0,2.5, by = 0.2) ) +
+    scale_x_log10() +
+    scale_y_continuous() + 
+    xlab("Stature (cm)") +
+    ylab("Number of OTUs") +
+    ggtitle(paste0(site, " log-sizes")) + 
+    theme_bw()
+  # Save the output plot
+  
+  # Generate histogram of statures
+  plot_out2 <- ggplot(data = stature.df, aes(x = statureDBH)) +
+    geom_histogram(breaks = seq(0, 200, by = 5) ) +
+    scale_x_continuous() +
+    scale_y_continuous() + 
+    xlab("Stature (cm)") +
+    ylab("Number of OTUs") +
+    ggtitle(paste0(site, " sizes")) + 
+    theme_bw()
+
+ggpubr::ggarrange(plot_out1, plot_out2)
+
+
+```
+
+The big point of concern here are the few number of stems for the last canopy level (not including NA). Some cutoff needs to be chosen to be shared across sites, two options are that the canopy level must have a minimum of a 1000 stems, or at a minimum must represent 5% of all stems.
+
+### Growth Rates
+
+``` {r growthCalc1, echo = 0}
+ # Get binary variables denoting growth and survival of individual of class
+  # i from interval t to t + 1 for the largest stem in a group
+  condensed.L <- rep(list(NULL), length(AllStems) - 1)
+  
+  # Loop aggregating the data into one spot
+  for(c in 1:(length(AllStems) - 1)){
+    # Put in the census information
+    condensed.L[[c]] <- AllStems[[c]] %>%
+      select(., c("StemID", "TreeID",
+                  "Mnemonic", "Census",
+                  "Stem", "CanopyLvl",
+                  "RametStatus", "GenetStatus",
+                  "DBH", "Codes",
+                  "Date")) %>%
+      as_tibble(.) %>%
+      mutate(Date = ymd(Date)) %>%
+      rename(RametStatus_bef = RametStatus,
+             GenetStatus_bef = GenetStatus,
+             DBH_bef = DBH,
+             Codes_bef = Codes,
+             Date_bef = Date) # before
+    
+    # Put the subseqent census information right next to it.
+    condensed.L[[c]] <- AllStems[[c + 1]] %>%
+      select(., c("StemID", "RametStatus",
+                  "GenetStatus", "DBH",
+                  "Codes", "RecruitStatus",  "Date")) %>%
+      as_tibble(.) %>%
+      mutate(Date = ymd(Date)) %>%
+      rename(RametStatus_aft = RametStatus, # after
+             GenetStatus_aft = GenetStatus,
+             DBH_aft = DBH,
+             Codes_aft = Codes,
+             Date_aft = Date) %>%
+      left_join(condensed.L[[c]], ., by = "StemID")
+   
+    
+    # Add a column denoting the duration that elapsed between the two measurements
+    condensed.L[[c]] %<>%
+      mutate(Date_dur = int_length(ymd(Date_bef) %--% ymd(Date_aft))) %>%
+      mutate(Date_dur = as.duration(Date_dur)/dyears(1))
+    }
+  
+  # Calculations for individual stems
+  # --- getting individual data for growth ------------------------------------
+  growth.l <- lapply(condensed.L, function(x){
+    # Filtering out all of the stems that we do NOT want to take growth
+    # measures from, like those with POM changes, dead stems, missing stems,
+    # etc.
+    
+    t_rf <- 3 # The final time across which we want to consider the growth rate
+    # note that since the re-measurement intervals are ~5y this centers
+    # it along that interval
+    
+    t_ri <- 2 # The initial time across we want the linear growth rate, note 
+    # t_rf - t_ri is 1 year, so this is a linear growth rate per year
+    # within the middle of the expected interval
+    
+    # Currently using the formulation in the BCI paper (change in DBH across 
+    # the ~midpoint year)
+    # Another option is to treat it as a (DBH_aft/DBH_bef)^(1/Date_dur)
+    
+    # Who to include
+    x %<>% mutate(DBH_use = RametStatus_bef == "A" & # stem living at t_i
+                    RametStatus_aft == "A" &  # stem must be living at t_f
+                    !CodesLogic(Codes_aft, "A") & # stems not have POM shift
+                    (!(Stem == "Secondary") | is.na(Stem)) & # only primary stems/single stemed
+                    !is.na(DBH_bef) & # must have a DBH at both t_f and t_i
+                    !is.na(DBH_aft))
+    
+    # Actual estimation
+    x %<>% mutate(
+      growth1 = case_when(DBH_use ~ DBH_bef*(
+        (DBH_aft/DBH_bef)^(t_rf/Date_dur) - (DBH_aft/DBH_bef)^(t_ri/(Date_dur))),
+        TRUE ~ NA_real_),
+      growth3 = case_when(DBH_use ~ (DBH_aft - DBH_bef)/Date_dur,
+                          TRUE ~ NA_real_),
+      growth2 = case_when(DBH_use ~ (DBH_aft/DBH_bef)^(1/Date_dur),
+                            TRUE ~ NA_real_)) %>%
+      select(c("StemID", "TreeID", "Mnemonic", "Census", "Stem", "CanopyLvl",
+               "Date_dur" , "growth1", "growth2", "growth3", "Codes_bef", "Codes_aft",
+               "DBH_bef", "DBH_aft"))  
+    
+    return(x)
+    
+  })
+
+# displaying the first census
+
+
+```
+
+There are several ways to calculate growth rates using these data. Option 1 uses the same expression as in Grady et al. Unpublished. It takes the two measurement points, takes a point estimate of an exponential growth rate, then infers the diameter at 2 years and 3 years after the first measurement and takes their difference.
+$$
+g_1 = d_i* \left(\left( \frac{d_f}{d_i} \right)^{3yr/\Delta t} - \left( \frac{d_f}{d_i} \right)^{2yr/\Delta t}\right)
+$$
+Where $d_i$ and $d_f$ represent the initial and final diameters measurements respectively. $\Delta t$ is the duration of time between the two measurements, and $g_1$ is the amount of growth (henceforth referred to as growth-1) in cm. Here values can take on any real number.
+
+The next format simply is the exponential growth rate point estimate (referred to as growth-2). And is calculated as:
+$$
+g_2 = \left( \frac{d_f}{d_i} \right)^{1/\Delta t}
+$$
+Where $g_2$ is the growth-2 rate in the format of a proportion, with 1 being no growth.
+
+Lastly, growth-3 follows the calculation used by Kambach et al. for a simple linear calculation.
+
+$$
+g_3 = \frac{d_f - d_i}{\Delta t}
+$$
+Where $g_3$ is the growth rate in cm/yr, and all other symbols follow the other methods.
+``` {r growthPart2, echo = 0}
+
+
+use_data <- growth.l[[1]] %>%
+      filter(., !is.na(growth1)) %>%
+      mutate(CanopyLvl = as.factor(CanopyLvl))
+      
+    lwr <- -0.25
+    hgr <- 1
+    
+    # Keeping track of which ones got dropped off 
+    nremv <- length(which(use_data$growth1 < lwr | use_data$growth1 > hgr))
+    census_name <- unique(use_data$Census)
+    
+    # create the plot for output
+    plot_out <- ggplot(data = use_data,
+                       aes(growth1, fill = CanopyLvl, colour = CanopyLvl)) +
+      geom_histogram(binwidth = .02, alpha = 0.25, position = "identity" ) +
+      scale_x_continuous(name ="Growth-I (cm)") +
+      scale_fill_hue(name = "Canopy level") +
+      scale_color_hue(name = "Canopy level") +
+      coord_cartesian(xlim = c(lwr, hgr)) +
+      theme_bw() +
+      ylab("Count") +
+      xlab("Growth-I (cm)") +
+      theme(plot.caption = element_text(hjust=0, margin = margin(15,0,0,0)),
+            legend.title = element_text()) +
+      ggtitle(paste0(site,"-", census_name, " growth-I histogram"))
+    
+    
+    # If there are values out of range, make sure to have it be recorded
+    if(nremv > 0 ){
+      plot_out <- plot_out + labs(caption = paste0("* ", nremv, " values are not represented."))}
+
+    
+    use_data <- growth.l[[1]] %>%
+      filter(., !is.na(growth1)) %>%
+      mutate(CanopyLvl = as.factor(CanopyLvl),
+             growth2 = growth2)
+    
+    lwr <- 0.85
+    hgr <- 1.35
+    
+    # Keeping track of which ones got dropped off 
+    nremv <- length(which(use_data$growth2 < lwr | use_data$growth2 > hgr))
+    census_name <- unique(use_data$Census)
+    
+    # create the plot for output
+    plot_out2 <- ggplot(data = use_data,
+                       aes(growth2, fill = CanopyLvl, colour = CanopyLvl)) +
+       geom_histogram(binwidth = .005, alpha = 0.25, position = "identity" ) +
+      scale_x_continuous(name ="Growth-II", labels = scales::percent) +
+      scale_fill_hue(name = "Canopy level") +
+      scale_color_hue(name = "Canopy level") +
+      coord_cartesian(xlim = c(lwr, hgr)) +
+      theme_bw() +
+      ylab("Count") +
+      xlab("Growth-II (cm)") +
+      theme(plot.caption = element_text(hjust = 0, margin = margin(15,0,0,0)),
+            legend.title = element_text()) +
+      ggtitle(paste0(site, "-", census_name, " growth-II histogram"))
+    
+    # If there are values out of range, make sure to have it be recorded
+    if(nremv > 0 ){
+      plot_out2 <- plot_out2 + labs(caption = paste0("* ", nremv, " values are not represented."))}
+    
+    # graphing following Kambach et al.
+    lwr = -0.5; hgr = 1.25
+    plot_out3 <- ggplot(data = use_data,
+                       aes(growth3, fill = CanopyLvl, colour = CanopyLvl)) +
+       geom_histogram(binwidth = .025, alpha = 0.25, position = "identity" ) +
+      scale_x_continuous(name ="Growth-III") +
+      scale_fill_hue(name = "Canopy level") +
+      scale_color_hue(name = "Canopy level") +
+      coord_cartesian(xlim = c(lwr, hgr)) +
+      theme_bw() +
+      ylab("Count") +
+      xlab("Growth-III (cm/yr)") +
+      theme(plot.caption = element_text(hjust = 0, margin = margin(15,0,0,0)),
+            legend.title = element_text()) +
+      ggtitle(paste0(site, "-", census_name, " growth-III histogram"))
+    
+    # If there are values out of range, make sure to have it be recorded
+    if(nremv > 0 ){
+      plot_out2 <- plot_out2 + labs(caption = paste0("* ", nremv, " values are not represented."))}
+    
+    
+    print(plot_out)
+    print(plot_out2)
+    print(plot_out3)
+    
+    q <- c(0,0.001, 0.002, 0.005, 0.01, 0.05, 0.25,
+           0.5, 0.75, 0.95, 0.99, 0.995, 0.998,
+           0.999,1)
+    
+    data.frame(growth1 = quantile(growth.l[[1]]$growth1,
+                                  probs = q,
+                                  na.rm = T),
+               growth2 = quantile(growth.l[[1]]$growth2,
+                                  probs = q,
+                                  na.rm = T),
+               growth3 = quantile(growth.l[[1]]$growth3,
+                                  probs = q,
+                                  na.rm = T)) %>%
+      kable(digits = 2)
+    
+    
+```
+Just looking at these distributions, it appears that removal of the most extreme values (the extreme 0.2% perhaps) should go a long way to remove messy observations. 
+
+
+Now lets break these up to the 5 most common OTUs. We are going to fit distributions to both of these growth parameters to the top 10 most common (only 5 were plotted for clarity).
+``` {r common10, echo = F}
+use_data <- growth.l[[1]] %>% filter(Mnemonic %in% commonOTU & !is.na(growth1))
+
+ lwr <- -0.25
+    hgr <- .5
+
+plot_out1 <- ggplot(use_data, aes(x = growth1, color = Mnemonic)) +
+  geom_density(alpha = 0.25, position = "identity" ) +
+  theme_bw()+
+  coord_cartesian(xlim = c(lwr, hgr)) +
+  ylab("Density") +
+      xlab("Growth-I (cm)") +
+  ggtitle("Growth-I by canopy level") +
+  facet_wrap(~ CanopyLvl)
+
+print(plot_out1)
+
+
+use_data <- growth.l[[1]] %>% filter(Mnemonic %in% commonOTU & !is.na(growth1))
+
+ lwr <- 0.9
+ hgr <- 1.2
+
+plot_out1 <- ggplot(use_data, aes(x = growth2, color = Mnemonic)) +
+  geom_density(alpha = 0.25, position = "identity" ) +
+  theme_bw()+
+  scale_x_continuous(labels = scales::percent)+
+  coord_cartesian(xlim = c(lwr, hgr)) +
+  ylab("Density") +
+      xlab("Growth-II") +
+  ggtitle("Growth-II by canopy level") +
+  facet_wrap(~ CanopyLvl)
+
+print(plot_out1)
+
+
+# Growth 3 (Kambach -linear)
+use_data <- growth.l[[1]] %>% filter(Mnemonic %in% commonOTU & !is.na(growth1))
+
+ lwr <- -0.25
+ hgr <- 0.75
+
+plot_out1 <- ggplot(use_data, aes(x = growth3, color = Mnemonic)) +
+  geom_density(alpha = 0.25, position = "identity" ) +
+  theme_bw()+
+  scale_x_continuous()+
+  coord_cartesian(xlim = c(lwr, hgr)) +
+  ylab("Density") +
+      xlab("Growth-III") +
+  ggtitle("Growth-III by canopy level") +
+  facet_wrap(~ CanopyLvl)
+
+print(plot_out1)
+
+```
+
+
+
+One thing to note between both these individual species and across all stems, is that growth (of all metrics) needs to be skewed right
+
+To complement the visualization, here are a few key points for each OTU. The "Stems with growth" column is the percentage of stems that have growth values calculated. Stems can lack a value for their growth calculation for reasons such as change in the point of measurement, death of the stem, and not being the main stem of the plant. The "Growth >0" and "Growth >=0" columns are the percentage of growing stems that have growth of >0 or >=0 over the time frame. 
+
+``` {r fitg2, echo = F}
+
+growth.l[[1]] %>%
+  group_by(Mnemonic) %>%
+  summarize(perc_wGrow = 100*length(which(!is.na(growth2)))/n(),
+            perc_ofGrowPos = 100*length(which(growth2 > 1))/length(which(!is.na(growth2))),
+             perc_ofno0grow = 100*length(which(growth2 >= 1))/length(which(!is.na(growth2)))) %>%
+  kable(digits = 1, col.names = c("Mnemonic", "Stems with growth","Growth >0", "Growth >=0"))
+
+print(paste0("Percentage of stems with growth values that have >0 growth: ",
+             round(100*length(which(growth.l[[1]]$growth2 > 1))/length(
+               which(!is.na(growth.l[[1]]$growth2))), 1 )))
+                                                                              
+
+print(paste0("Percentage of stems with growth values that have >=0 growth: ",
+             round(100*length(which(growth.l[[1]]$growth2 >= 1))/length(
+               which(!is.na(growth.l[[1]]$growth2))), 1 )))
+                                                                 
+
+```
+
+And here is a breakdown of the number of stems for each of the most common taxa that have growth measures. I think this reinforces the point that level 4 needs the axe. Note that Viburnum nudum although a very common stem, doesn't have many distinct growth measures since most stems would be in multi-stemmed plants.
+``` {r breakdownLvls, echo = F}
+
+tb2 <- growth.l[[1]] %>%
+  filter(Mnemonic %in% common10 & !is.na(growth2)) %>%
+  group_by(., Mnemonic) %>% summarize(n_Lvl1 = sum(as.numeric(CanopyLvl == 1)),
+                                      n_Lvl2 = sum(as.numeric(CanopyLvl == 2)),
+                                      n_Lvl3 = sum(as.numeric(CanopyLvl == 3)),
+                                      n_Lvl4 = sum(as.numeric(CanopyLvl == 4)))
+
+tb2 %>% dplyr::mutate_if(is.numeric, function(x){as.character(signif(x, 5))}) %>%
+    kable()
+
+tb3 <- growth.l[[1]] %>%
+  filter(Mnemonic %in% commonOTU & !is.na(growth2)) %>%
+  group_by(., Mnemonic, CanopyLvl) %>%
+  mutate(group = paste0(Mnemonic, "_", CanopyLvl))
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

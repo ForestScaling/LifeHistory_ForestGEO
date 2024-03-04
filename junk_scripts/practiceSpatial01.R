@@ -1,3 +1,4 @@
+
 # ### Setup ###################################################################
 # Packages
 for(i in c("terra","sf","raster", "tidyverse", "magrittr")){
@@ -101,8 +102,6 @@ stem_sptl <- stem_sptl %>%
   mutate(subplt = stem_kp.v) %>%
   st_set_crs(NA)
 
-
-
 # Plot
 plt <- ggplot() +
   geom_sf(data = stem_sptl, aes(color = is.na(subplt))) + 
@@ -131,25 +130,11 @@ AllStems <- lapply(AllStems, FUN = function(X){
   X %>% mutate(AlgoSubplot = stem_kp.v) %>% return()
 })
 
-
-
-
-# HERE!!
-
-
-
-
 # write out the file
 save(AllStems,
      file = paste0(loc_Gdr, loc_1, paste0(site, "_AllStems.r")))
+
 }
-
-
-# Detach the spatial packages, the 'select' function isn't playing nicely
-for(i in c("sf", "terra", "raster")){
-  detach(paste0("package:", i), character.only = T)
-}
-
 # End
 
 
