@@ -13,7 +13,7 @@ for(x in c("magrittr", "rstudioapi", "tidyverse")){
 
 site <- "HVDF"
 c("HVDF", "SCBI", "SERC")
-for(site in "EXHF"){
+for(site in c("HVDF", "SCBI", "SERC")){
 
 
 load(paste0(loc_data, site, "_STANdata.r"))

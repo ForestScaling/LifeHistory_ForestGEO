@@ -195,7 +195,9 @@ for(k in 1:length(All_STAN_fits.L)){
       mean = a)
     
     
-  } else {stop("Parameter/Data type can't handle missing values!")}
+  }else{
+    stop("Parameter/Data type can't handle missing values!")
+    }
   
   # What OTU are Missing
   miss_OTU <- param_ests.df$Mnemonic[
@@ -230,7 +232,7 @@ sumrz_MCMC_ALL %<>%
                               probs = 0.99,
                               na.rm = T)) %>% 
   left_join(sumrz_MCMC_ALL, ., by = "param_label") %>%
-  mutate(W = 1-(wCrI/wCrI99)) %>% # calculate weights
+  mutate(W = 1 - (wCrI/wCrI99)) %>% # calculate weights
   mutate(W = case_when(W < 0 & !is.na(W) ~ W_max,
     is.na(W) | W < W_min ~ W_min,
                        TRUE ~ W))
@@ -282,7 +284,6 @@ recrt_df %<>%
     MSt_Weight = case_when(MSt_Weight < 0 ~ 1,
                            MSt_Weight < W_min ~ W_min,
                            TRUE ~ MSt_Weight))
-
 # Weights are whack right now
 recrt_df %<>% pivot_longer(c(recrt_p1_stemsperMInd, recrt_p1_stemsperMBA),
                           names_to = "param", values_to = "val") %>%
@@ -291,6 +292,7 @@ recrt_df %<>% pivot_longer(c(recrt_p1_stemsperMInd, recrt_p1_stemsperMBA),
          param_est = !is.na(W),
          W = case_when(is.na(W) ~ W_min,
                        TRUE ~ W))
+### HERE ########
 
 # keep only the used columns
 recrt_df %<>% select(Mnemonic, param, val, W, param_est)

@@ -27,9 +27,9 @@ cat(paste0("Set working directory for scripts at:\n", getwd(),"\n"))
 source("./scripts/wPCA_code.R")
 
 # Load in the NEON foliar trait data
-NEON.df <- read.csv(paste0(loc_Gdr,
-                           "/data/FunctionalTraits/",
-                           "NEON_FoliarTraits.csv"))
+# NEON.df <- read.csv(paste0(loc_Gdr,
+#                            "/data/FunctionalTraits/",
+#                            "NEON_FoliarTraits.csv"))
 
 # Logit functions
 logit_inv <- function(x){

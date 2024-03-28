@@ -9,7 +9,7 @@ loc_1 <- "/data/ForestGEO/processed/standardized/"
 
 # General options
 min_DBH <- 10 # minimum size in cm
-filter_DBH <- T # Whether or not to filter trees by a minimum DBH
+filter_DBH <- F # Whether or not to filter trees by a minimum DBH
 
 # Load in the packages
 for(i in c("tidyverse", "magrittr")){
