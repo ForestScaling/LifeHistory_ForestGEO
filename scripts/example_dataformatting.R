@@ -1,7 +1,6 @@
 # Load in the packages
 for(i in c("MASS", "magrittr", "lubridate", "knitr",
-           "fitdistrplus", "tidyverse", "kableExtra",
-           "dplyr")){
+           "fitdistrplus", "tidyverse", "kableExtra")){
   library(i, character.only = T)
 }
 
@@ -137,7 +136,7 @@ recruit.df <- double.df %>%
   # must be in estimated portions of the plot
   left_join(., adult_cutoff, by = "Mnemonic") %>%
   # calculate mature live Basal area
-  mutate(live_MBA = pi*(DBH_bef/2)^2) %>% # basal area
+  mutate(live_MBA = pi*(DBH_bef/200)^2) %>% # basal area, area in m^2
   # dbh > cutoff & is alive
   mutate(live_MBA = live_MBA*as.integer(DBH_bef >= cutoff)) %>%
   # stem must be live in first census
@@ -161,13 +160,15 @@ recruit.df <- recruit.df %>%
   
 # calculate the rates
 recruit.df <- recruit.df %>%
-  mutate(recrt_p1_stemsperMInd = log((n_recrt + 1)/M_stem),
-         recrt_p1_stemsperMBA = log((n_recrt + 1)/live_MBA)) %>%
+  mutate(recrt_p1_stemsperMInd = (n_recrt + 1)/M_stem,
+         recrt_p1_stemsperMBA = (n_recrt + 1)/live_MBA) %>%
   # to remove weird ones we need to filter out Inf values
   # weird ones due no mature/live individuals previously
   # (can't base rate with an undefined denominator)
   filter(is.finite(recrt_p1_stemsperMInd) &
            is.finite(recrt_p1_stemsperMBA))
+
+
 
 # End of calculations
 # --- ouput the formatted data (for example scripts) -----------------------
