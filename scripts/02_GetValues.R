@@ -219,7 +219,7 @@ growth.l <- lapply(condensed.L, function(x){
     #   TRUE ~ NA_real_),
     # growth3 = case_when(DBH_use ~ (DBH_aft - DBH_bef)/Date_dur,
     #                     TRUE ~ NA_real_),
-    growth2 = case_when(DBH_use ~ (DBH_aft/DBH_bef)^(1/Date_dur),
+    growth2 = case_when(DBH_use ~ (DBH_aft - DBH_bef)/(Date_dur),
                         TRUE ~ NA_real_)) %>%
     select(c("StemID", "TreeID", "Mnemonic", "Census", "Stem", "CanopyLvl",
              "Date_dur" ,  "growth2", "Codes_bef", "Codes_aft",
@@ -254,7 +254,8 @@ for(l_i in 1:length(growth.l)){
     # number with grow <0
     summarize(n_stem = n(),
               n_g2 = length(which(!is.na(growth2))),
-              n_neggrow = length(which(growth2 < 1))) %>%
+              n_neggrow = length(which(growth2 < ### HERE ###
+                                         0))) %>%
     mutate(n_used = NA_integer_,
            MnLvl = paste(Mnemonic, CanopyLvl, sep = "_"))
   
@@ -346,7 +347,8 @@ for(l_i in 1:length(growth.l)){
         
         # retrieve those that had  0 or <0 growth AFTER removing percentile
         tempGrowth.df <- OTU.df %>%
-          mutate(grow_Bin = growth2 > 1) %>%
+          mutate(grow_Bin = growth2 > ### HERE ###
+                   0) %>%
           select(., -c("growth2", "DBH_bef", "DBH_aft"))
         
         # Add it to the rest of the data
@@ -360,7 +362,7 @@ for(l_i in 1:length(growth.l)){
   
 
         # After we figure out who did/didn't grow, filter out the non-growers
-        OTU.df %<>% filter(growth2 > 1)
+        OTU.df %<>% filter(growth2 > 0) ### HERE ###
       
       
       # Check and randomly choose values
@@ -379,15 +381,16 @@ for(l_i in 1:length(growth.l)){
                                         nrow(OTU.df)),
                                     TRUE ~ n_used)) 
       
-      growth.df1 %<>% filter(Mnemonic != OTU | CanopyLvl != Lvl) %>%
+      growth.df1 %<>%
+        filter(Mnemonic != OTU | CanopyLvl != Lvl) %>%
         bind_rows(OTU.df)
       
     }}
   
-  
+  # make it percent increase per year
   growth.l[[l_i]] <- growth.df1 %>%
     filter(!is.na(growth2)) %>%
-    mutate(growth2 = growth2 - 1) 
+    mutate(growth2 = growth2 - 0) ### here ### (was - 1)
 
   
   
@@ -487,7 +490,8 @@ recruit.l <- lapply(condensed.L, function(x){
   denom.df <- full_join(x_mat, x_all, by = "Mnemonic") %>%
     left_join(TaxaTable_2est, by  = "Mnemonic")
   
-  n_rect.df <- n_rect.df %>% left_join(., denom.df, by  = "Mnemonic")
+  n_rect.df <- n_rect.df %>%
+    left_join(., denom.df, by  = "Mnemonic")
   
   # Making decisions of how recruitment is calculated
   n_rect.df %<>% mutate(recrt_stemsperMBA =
