@@ -1,6 +1,7 @@
 # 03_STAN_AnalysisRunsOnly.R
 t_ini <- Sys.time() # Timer for the entire script
 
+options(warn = 1)
 # set seed for the runs
 set.seed(123)
 
@@ -42,7 +43,7 @@ JMR_smry_diagnostics <- function(STANfit, fitname = "Model"){
 
 # Default vals for runs (override individually if desired.)
 warm_its <- 2000  # number of warmups
-smpl_its <- 5000  # number of USED iter, (MCMC will run for smpl + warm)
+smpl_its <- 5000 # number of USED iter, (MCMC will run for smpl + warm)
 n_coreuse <- 5    # number of cores to use
 n_chains <- 5     # number of chains to run
 n_thin <- 1       # thinning, 1 = none
@@ -50,12 +51,7 @@ NUTS_adapt_delta <- 0.85 # adapt delta, default is 0.801, larger means
 # ~smaller "steps" so less divergence, but less
 # efficient
 
-# list of models and their stan files
-# STAN_file.L <- list(growthCont = "growth_lognormal_estimate.stan",
-#                     growthBinary = "growthBinary.stan",
-#                     BinarySurv = "Bsurvival.stan"
-#                     )
-STAN_file.L <- list(growthCont = "growth_lognormal_estimate.stan",
+STAN_file.L <- list(growthCont = "growth_lognormal_reparam.stan", # alt: growth_lognormal_reparam.stan
                     growthBinary = "binary_logitparam.stan",
                     BinarySurv = "binary_logitparam.stan"
 )
@@ -64,8 +60,7 @@ STAN_file.L <- list(growthCont = "growth_lognormal_estimate.stan",
 # ### STAN MCMC calls #########################################################
 # Begin running through the sites
 site <- "HVDF"
-for(site in c("HVDF", "SCBI", "SERC"
-               )){
+for(site in c("HVDF", "SCBI", "SERC")){
 load(paste0(loc_data, site, "_STANData_MCMC.r")) # load the data, ready to go.
 
 fit_names <- All_STAN_data.L %>% names(.) # names of all the stand Data sets
@@ -83,6 +78,7 @@ cat("Beginning calls for ", site, " at: ",
 # loop through the different datasets
 for(f in names(All_STAN_data.L)){
   cat("\nStarting: ", f, "\n", sep = "")
+  
   
   # extract the type of model (ignore CL for now)
   f_type <- gsub(x = f, pattern = "_CL\\d", replacement = "")
@@ -126,7 +122,7 @@ for(f in names(All_STAN_data.L)){
   
   t1.1 <- Sys.time()
   # run diagnostics
-  JMR_smry_diagnostics(fit1, fitname = f)
+  #JMR_smry_diagnostics(fit1, fitname = f)
   
   All_STAN_fits.L[[f]] <- fit1
   
@@ -147,7 +143,7 @@ for(f in names(All_STAN_data.L)){
 }
 
 
-# ### Storing results ###########################################################
+### Storing results ###########################################################
 save(list = c("All_STAN_fits.L", "All_params_SpeciesID.df"),
      file = paste0(loc_Gdr, "/data/ForestGEO/STAN_outputs/",site,
                    "_STAN_ResultsMCMC.R"))

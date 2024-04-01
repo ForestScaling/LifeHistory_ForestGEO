@@ -65,7 +65,7 @@ if(!identical(sort(names(All_STAN_fits.L)),
 
 # Common strings of text for parameters to disregard (log likelihood and
 # simulation from the posterior) will use text matching to remove these
-param_2_disregard <- c("g_rep", "log_lik", "lp__")
+param_2_disregard <- c("g_rep", "log_lik", "lp__", "z_sig")
 
 sumrz_MCMC_ALL <- data.frame() # Make an empty data frame to hold everything in it
 

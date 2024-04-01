@@ -141,13 +141,14 @@ Vals.df <- data_All %>%
 
 # Add in functional Trait data
 
-FuncTrt.df <- Spp_table %>% select(c(Latin, Mnemonic)) %>%
-  left_join(NEON.df, by = "Latin") %>%
-  select(-c(Source, Latin)) %>%
-  filter(Mnemonic %in% Vals.df$Mnemonic)
+
 
 # Add in the trait data
 if(use_FunTrt){
+  FuncTrt.df <- Spp_table %>% select(c(Latin, Mnemonic)) %>%
+    left_join(NEON.df, by = "Latin") %>%
+    select(-c(Source, Latin)) %>%
+    filter(Mnemonic %in% Vals.df$Mnemonic)
   cat("Adding functional trait data from NEON, gives missing species minimum",
       "weight and average value...")
 Vals.df <- FuncTrt.df %>%
