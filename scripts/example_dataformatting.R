@@ -69,7 +69,7 @@ growth.df <- growth.df %>%
 # Estimation
 growth.df <- growth.df %>%
   mutate(growth = case_when(
-    DBH_use ~ (DBH_aft/DBH_bef)^(1/Date_dur),
+    DBH_use ~ (DBH_aft-DBH_bef)/(Date_dur) - 0, # relative is 1, abs is 0
     TRUE ~ NA_real_)) %>%
   select(c("StemID","TreeID","Mnemonic","CanopyLvl","Date_dur","growth"))  
 
@@ -79,7 +79,7 @@ n_vals2keep <- 100 # number of growth values for subsampling
 
 # dropping values
 smy.df <- growth.df %>%
-  filter(growth > 1) %>% 
+  filter(growth > 0) %>% # relative is 1, abs is 0
   summarise(.by = c(Mnemonic, CanopyLvl), 
             n = n(), # number of stems
             drop = n*(1-p_outliers)) # number to drop
@@ -87,7 +87,7 @@ smy.df <- growth.df %>%
 # dataframe of continuous growth calculations
 cont_grow.df <- growth.df %>%
   # growth must be positive
-  filter(growth > 1) %>% 
+  filter(growth > 0) %>% 
   arrange(desc(growth)) %>%
   group_by(Mnemonic, CanopyLvl) %>%
   mutate(id = row_number()) %>% # assign rown number so we can drop largest 
@@ -104,7 +104,7 @@ cont_grow.df <-  cont_grow.df %>%
 # --- Binary growth -----------------------------------------------------------
 bin_grow.df <- growth.df %>%
   # binary variable for whether or not the stem grew
-  mutate(bin_growth = as.integer(growth > 1)) %>% 
+  mutate(bin_growth = as.integer(growth > 0)) %>% # absolute > 0, relative > 1
   # only keep the useful columns
   select(c(StemID, Mnemonic, CanopyLvl, bin_growth, Date_dur))
 
