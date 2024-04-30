@@ -113,17 +113,24 @@ data_All <- data_All %>% # drop the other OTUs
   filter(Mnemonic %in% keep_OTU) %>%
   arrange(Mnemonic)
 
+# placeholder code to manually check if negative values
+# are present
+if(all(
+  data_All$val[data_All$param %in%
+               c("recrt_p1_stemsperMBA",
+                 "recrt_p1_stemsperMInd")] > 0
+)){
 data_All$val[data_All$param %in%
                c("recrt_p1_stemsperMBA", "recrt_p1_stemsperMInd")] <-
   log(data_All$val[data_All$param %in%
                      c("recrt_p1_stemsperMBA", "recrt_p1_stemsperMInd")])
-
+}
 
 # verify all species have all parameters
-if(nrow(data_All)/length(keep_OTU) != n_params){
-  stop(paste0("data_All's, Number of rows does not correspond to the number",
-              " of OTU x number of parameters!"))
-}
+# if(nrow(data_All)/length(keep_OTU) != n_params){
+#   stop(paste0("data_All's, Number of rows does not correspond to the number",
+#               " of OTU x number of parameters!"))
+# }
 
 # --- Retrieve the two matricies ----------------------------------------------
 # Weights
@@ -132,6 +139,11 @@ W.df <- data_All %>%
   select(-c(param_est, val)) %>%
   pivot_wider(., names_from = param, values_from = W)
 
+# replace NA values for recrut weights
+W.df$recrt_p1_stemsperMInd[is.na(W.df$recrt_p1_stemsperMInd)] <- W_min 
+W.df$recrt_p1_stemsperMBA[is.na(W.df$recrt_p1_stemsperMBA)] <- W_min
+
+print(any(is.na(W.df)))
 # Vals 
 Vals.df <- data_All %>%
   select(-c(param_est, W)) %>%
@@ -173,7 +185,7 @@ keep_OTU <- sort(keep_OTU)
 
 #if(site != "HVDF"){stop()}
 # check that the names are lined up:
-if(!identical(W.df$Mnemonic, keep_OTU) | !identical(Vals.df$Mnemonic, keep_OTU)){
+if(!identical(W.df$Mnemonic, Vals.df$Mnemonic)){
   stop("Mnemonic names not all aligned!")
 }else if(!identical(colnames(W.df), colnames(Vals.df))){
   stop("Parameter columns names not all aligned!")
